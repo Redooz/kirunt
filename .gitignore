@@ -1,0 +1,10 @@
+# Generated per run by evals/run.sh (removed on clean exit, left behind on Ctrl-C)
+evals/.fixtures/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/

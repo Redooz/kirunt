@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    name: Offline evals
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check bash syntax
+        run: |
+          for f in hooks/* scripts/* scripts/lib/* evals/*.sh install/install.sh; do
+            bash -n "$f"
+          done
+
+      - name: Run offline suite (79 cases)
+        run: bash evals/run.sh
+
+      - name: Run config suite
+        run: bash evals/config-evals.sh

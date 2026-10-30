@@ -1,0 +1,73 @@
+name: Bug report
+description: Something in kirunt blocked, delegated, or installed incorrectly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please don't paste secrets, tokens, or private file contents.
+        Security issues go through [SECURITY.md](https://github.com/Redooz/kirunt/blob/main/.github/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: The command you ran or the prompt you gave, plus the smallest input that shows it.
+      placeholder: |
+        1. kiro-cli chat --agent kirunt
+        2. "read evals/fixtures/websocket-handler.ts"
+        3. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Which layer is involved
+      options:
+        - Hook (read/shell blocking)
+        - bulk-read
+        - code-write
+        - mcp-call
+        - Installer / uninstaller
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: cli-version
+    attributes:
+      label: kiro-cli version
+      description: Output of `kiro-cli --version`
+    validations:
+      required: true
+
+  - type: textarea
+    id: engine-settings
+    attributes:
+      label: Engine settings
+      description: Output of `kiro-cli settings list`
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: config.json
+      description: The config in use (`~/.kiro/kirunt/config.json` for a global install)
+      render: json
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I ran `bash evals/run.sh` and it passes locally
+        - label: I searched existing issues for this problem

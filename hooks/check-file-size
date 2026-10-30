@@ -1,0 +1,105 @@
+#!/bin/bash
+# preToolUse hook (matcher: read) — blocks full-file reads on large files,
+# redirecting to the bulk-reader skill/script instead.
+#
+# Kiro hook contract: JSON event on stdin, decision via exit code.
+#   exit 0  -> allow (stdout ignored, not shown to user)
+#   exit 2  -> block (stderr is returned to the model as the reason)
+#   other   -> allow, but stderr shown to the user as a warning
+#
+# Kiro CLI V3 sends a single read_file event:
+#   { "tool_name": "read_file",
+#     "cwd": "/path/to/workspace",
+#     "tool_input": { "path": "src/file.ts", "offset": null, "limit": null } }
+#
+# Kiro CLI V2 batches files in one call via tool_input.operations[], each
+# with its own mode/path/offset/limit. Both shapes are handled here so the
+# hook keeps working across engines. Any single operation that would read a
+# large file untargeted is enough to block the whole call.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../scripts/lib/kirunt.sh
+. "$SCRIPT_DIR/../scripts/lib/kirunt.sh"
+
+# Single authoritative switch: if bulk-reader delegation is disabled, don't
+# block reads either — there would be nowhere useful to redirect to.
+if [ "$KIRUNT_ENABLE_BULK_READER" = "false" ]; then
+  exit 0
+fi
+
+input=$(cat)
+
+# V3 includes the workspace root; use it to resolve relative paths.
+cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+[ -z "$cwd" ] && cwd="$PWD"
+
+# Returns 2 when the path should be blocked, 0 otherwise.
+check_path() {
+  local file_path="$1" offset="$2" limit="$3" lines
+
+  # Allow targeted reads (offset or limit set) — the model already knows
+  # what section it needs.
+  if [ -n "$offset" ] || [ -n "$limit" ]; then
+    return 0
+  fi
+
+  # Allow if path is empty or the file doesn't exist — let read handle it.
+  [ -z "$file_path" ] && return 0
+  case "$file_path" in
+    /*) ;;
+    *) file_path="$cwd/$file_path" ;;
+  esac
+  [ -f "$file_path" ] || return 0
+
+  lines=$(wc -l < "$file_path" 2>/dev/null | tr -d ' ')
+  case "$lines" in ''|*[!0-9]*) lines=0 ;; esac
+
+  if [ "$lines" -gt "$KIRUNT_MIN_LINES" ]; then
+    echo "File '$file_path' is ${lines} lines (threshold: ${KIRUNT_MIN_LINES}). Use the bulk-reader skill ($SCRIPT_DIR/../scripts/bulk-read) to delegate this read to $KIRUNT_WORKER_MODEL instead of reading it directly. If you need exact content for editing, re-read with an offset/limit for just the section you need." >&2
+    return 2
+  fi
+
+  return 0
+}
+
+# ── V2: batched operations[] ──
+op_count=$(printf '%s' "$input" | jq -r '.tool_input.operations // [] | length' 2>/dev/null || echo 0)
+case "$op_count" in ''|*[!0-9]*) op_count=0 ;; esac
+
+if [ "$op_count" -gt 0 ]; then
+  i=0
+  while [ "$i" -lt "$op_count" ]; do
+    op=$(printf '%s' "$input" | jq -c ".tool_input.operations[$i]" 2>/dev/null)
+    i=$((i + 1))
+
+    mode=$(printf '%s' "$op" | jq -r '.mode // empty' 2>/dev/null)
+    # Only Line-mode reads of a whole file are in scope; Directory/Image modes
+    # pass through untouched.
+    if [ "$mode" != "Line" ]; then
+      continue
+    fi
+
+    file_path=$(printf '%s' "$op" | jq -r '.path // empty' 2>/dev/null)
+    offset=$(printf '%s' "$op" | jq -r '.offset // empty' 2>/dev/null)
+    limit=$(printf '%s' "$op" | jq -r '.limit // empty' 2>/dev/null)
+
+    check_path "$file_path" "$offset" "$limit" || exit 2
+  done
+  exit 0
+fi
+
+# ── V3: single read_file event ──
+# The read matcher also covers list_directory, grep_search, file_search,
+# code, and introspect; only read_file has a path we gate here.
+tool_name=$(printf '%s' "$input" | jq -r '.tool_name // empty' 2>/dev/null)
+case "$tool_name" in
+  read_file|fs_read|"") ;;
+  *) exit 0 ;;
+esac
+
+file_path=$(printf '%s' "$input" | jq -r '.tool_input.path // empty' 2>/dev/null)
+offset=$(printf '%s' "$input" | jq -r '.tool_input.offset // empty' 2>/dev/null)
+limit=$(printf '%s' "$input" | jq -r '.tool_input.limit // empty' 2>/dev/null)
+
+check_path "$file_path" "$offset" "$limit" || exit 2
+exit 0

@@ -1,0 +1,35 @@
+{
+  "name": "kirunt",
+  "description": "Development agent that kirunts I/O-heavy work (large file reads, boilerplate generation) to a cheaper worker model, saving tokens on large file reads and boilerplate generation.",
+  "prompt": "You are a development assistant. Before reading a large file directly or writing large amounts of boilerplate code, check whether the bulk-reader or code-writer skill applies — they delegate I/O-heavy work to a cheaper model and save you context budget. You have no MCP tools directly available, on any project — if a task needs an MCP server (docs search, wiki, tickets, etc.), use the mcp-caller skill to delegate the call instead. See the bulk-reader, code-writer, and mcp-caller skills for when and how to use them.",
+  "tools": [
+    "read",
+    "write",
+    "shell",
+    "web"
+  ],
+  "resources": [
+    "skill://skills/*/SKILL.md"
+  ],
+  "hooks": [
+    {
+      "name": "check-file-size",
+      "trigger": "PreToolUse",
+      "matcher": "read",
+      "action": {
+        "type": "command",
+        "command": "hooks/check-file-size"
+      }
+    },
+    {
+      "name": "check-bash-read",
+      "trigger": "PreToolUse",
+      "matcher": "shell",
+      "action": {
+        "type": "command",
+        "command": "hooks/check-bash-read"
+      }
+    }
+  ],
+  "welcomeMessage": "kirunt is active: large file reads, boilerplate generation, and MCP tool calls will be redirected to the bulk-reader/code-writer/mcp-caller skills instead of consuming your context directly."
+}

@@ -1,0 +1,168 @@
+{
+  "hook": "check-bash-read",
+  "description": "Evals for the check-bash-read preToolUse hook (matcher: shell)",
+  "evals": [
+    {
+      "id": 1,
+      "name": "cat-large-file",
+      "input": { "tool_input": { "command": "cat {{FIXTURES}}/large.txt" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "Plain cat on large file — should block"
+    },
+    {
+      "id": 2,
+      "name": "cat-small-file",
+      "input": { "tool_input": { "command": "cat {{FIXTURES}}/small.txt" } },
+      "fixture": { "lines": 100 },
+      "expected_exit": 0,
+      "reason": "Small file — not worth delegating"
+    },
+    {
+      "id": 3,
+      "name": "cat-with-flag",
+      "input": { "tool_input": { "command": "cat -n {{FIXTURES}}/large.txt" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "cat with -n flag — should still block"
+    },
+    {
+      "id": 4,
+      "name": "head-large-file",
+      "input": { "tool_input": { "command": "head {{FIXTURES}}/large.txt" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "head on large file — should block"
+    },
+    {
+      "id": 5,
+      "name": "head-with-count",
+      "input": { "tool_input": { "command": "head -100 {{FIXTURES}}/large.txt" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "head -100 — still a bulk read, block"
+    },
+    {
+      "id": 6,
+      "name": "tail-large-file",
+      "input": { "tool_input": { "command": "tail {{FIXTURES}}/large.txt" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "tail on large file — should block"
+    },
+    {
+      "id": 7,
+      "name": "less-large-file",
+      "input": { "tool_input": { "command": "less {{FIXTURES}}/large.txt" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "less on large file — should block"
+    },
+    {
+      "id": 8,
+      "name": "cat-pipe",
+      "input": { "tool_input": { "command": "cat {{FIXTURES}}/large.txt | grep export" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 0,
+      "reason": "Piped command — targeted read"
+    },
+    {
+      "id": 9,
+      "name": "cat-redirect",
+      "input": { "tool_input": { "command": "cat {{FIXTURES}}/large.txt > /tmp/out.txt" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 0,
+      "reason": "Redirect — copying file, not reading into context"
+    },
+    {
+      "id": 10,
+      "name": "non-read-command",
+      "input": { "tool_input": { "command": "git status" } },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "Not a file read command"
+    },
+    {
+      "id": 11,
+      "name": "grep-command",
+      "input": { "tool_input": { "command": "grep -n 'export' {{FIXTURES}}/large.txt" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 0,
+      "reason": "grep is a targeted search — not caught"
+    },
+    {
+      "id": 12,
+      "name": "cat-quoted-path",
+      "input": { "tool_input": { "command": "cat \"{{FIXTURES}}/large.txt\"" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "Quoted path — should still be caught"
+    },
+    {
+      "id": 13,
+      "name": "cat-nonexistent",
+      "input": { "tool_input": { "command": "cat /tmp/kirunt-does-not-exist.txt" } },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "File doesn't exist — let shell handle the error"
+    },
+    {
+      "id": 14,
+      "name": "empty-command",
+      "input": { "tool_input": { "command": "" } },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "Empty command — pass through"
+    },
+    {
+      "id": 15,
+      "name": "missing-command-field",
+      "input": { "tool_input": {} },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "No command field — pass through"
+    },
+    {
+      "id": 16,
+      "name": "more-large-file",
+      "input": { "tool_input": { "command": "more {{FIXTURES}}/large.txt" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "more on large file — only regex-matched command without coverage"
+    },
+    {
+      "id": 17,
+      "name": "head-n-space-count",
+      "input": { "tool_input": { "command": "head -n 5 {{FIXTURES}}/large.txt" } },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "Parser bug: -n and 5 are separate args, 5 is treated as file path — file '5' won't exist so allow"
+    },
+    {
+      "id": 18,
+      "name": "bulk-reader-disabled-bypasses-cat",
+      "input": { "tool_input": { "command": "cat {{FIXTURES}}/large.txt" } },
+      "fixture": { "lines": 800 },
+      "env": { "KIRUNT_ENABLE_BULK_READER": "false" },
+      "expected_exit": 0,
+      "reason": "KIRUNT_ENABLE_BULK_READER=false disables blocking too — no delegation path to redirect to"
+    },
+    {
+      "id": 19,
+      "name": "env-override-lower-blocks",
+      "input": { "tool_input": { "command": "cat {{FIXTURES}}/medium.txt" } },
+      "fixture": { "lines": 250 },
+      "env": { "KIRUNT_MIN_LINES": "200" },
+      "expected_exit": 2,
+      "reason": "KIRUNT_MIN_LINES=200 overrides default — 250-line file should block"
+    },
+    {
+      "id": 20,
+      "name": "v3-execute-bash-relative-path",
+      "input": { "tool_name": "execute_bash", "cwd": "{{FIXTURES}}", "tool_input": { "command": "cat v3-shell-large.txt" } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "CLI V3 execute_bash event — resolve the relative path against cwd before blocking"
+    }
+  ]
+}

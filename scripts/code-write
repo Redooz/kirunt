@@ -1,0 +1,69 @@
+#!/bin/bash
+# Delegate boilerplate generation to the kirunt-code-writer worker agent.
+# Usage: code-write --spec "write tests for UserService" --reference ref.test.ts --target out.test.ts
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/kirunt.sh
+. "$SCRIPT_DIR/lib/kirunt.sh"
+
+AGENT_NAME="kirunt-code-writer"
+
+# Script-only switch — no hook enforces code-writer use, so disabling this
+# just means the caller falls back to writing the code itself.
+if [ "$KIRUNT_ENABLE_CODE_WRITER" = "false" ]; then
+  echo "Error: code-write is disabled (KIRUNT_ENABLE_CODE_WRITER=false)." >&2
+  exit 1
+fi
+
+spec=""
+reference=""
+target=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --spec)      spec="$2"; shift 2 ;;
+    --reference) reference="$2"; shift 2 ;;
+    --target)    target="$2"; shift 2 ;;
+    *)           shift ;;
+  esac
+done
+
+if [ -z "$spec" ]; then
+  echo "Error: --spec is required" >&2
+  exit 1
+fi
+
+# A bare spec would generate context-free code that matches nothing in the
+# project — fail loudly rather than write plausible-looking output.
+if [ -z "$reference" ]; then
+  echo "Error: --reference is required — pass a file whose patterns the output should match." >&2
+  echo "For a follow-up, reference the file the previous call just generated." >&2
+  exit 1
+fi
+if [ ! -f "$reference" ]; then
+  echo "Error: reference file not found: $reference" >&2
+  exit 1
+fi
+
+kirunt_preflight || exit 1
+kirunt_tmpfile message_file || exit 1
+kirunt_tmpfile answer_file || exit 1
+
+printf 'Spec: %s\n\nReference:\n' "$spec" > "$message_file"
+cat "$reference" >> "$message_file"
+
+kirunt_invoke "$AGENT_NAME" "$message_file" > "$answer_file" || exit 1
+
+# Strip markdown fences (model sometimes wraps despite instructions)
+clean=$(sed '/^```/d' "$answer_file")
+
+# Write to target or stdout
+if [ -n "$target" ]; then
+  echo "$clean" > "$target"
+  echo "Wrote $(wc -l < "$target" | tr -d ' ') lines to $target" >&2
+else
+  echo "$clean"
+fi
+
+# Token usage to stderr
+echo "[kirunt: delegated to $AGENT_NAME ($KIRUNT_WORKER_MODEL)]" >&2

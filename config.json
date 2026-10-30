@@ -1,0 +1,9 @@
+{
+  "worker_model": "claude-haiku-4.5",
+  "min_lines": 350,
+  "timeout_seconds": 180,
+  "enable_bulk_reader": true,
+  "enable_code_writer": true,
+  "enable_mcp_caller": true,
+  "mcp_caller_mode": "worker"
+}

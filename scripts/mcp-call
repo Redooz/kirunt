@@ -1,0 +1,109 @@
+#!/bin/bash
+# Delegate an MCP tool call to a worker agent.
+#
+# Usage:
+#   mcp-call --question "Search Confluence for the Q3 rollout page and summarize the timeline"
+#   mcp-call --tool "@confluence/conf_search" --args '{"query":"Q3 rollout"}' --question "..."
+#
+# Two delegation modes, controlled by KIRUNT_MCP_CALLER_MODE (see
+# lib/kirunt.sh for the full explanation of each):
+#
+#   worker (default)  — kirunt-mcp-caller, a dedicated custom agent using
+#                        includeMcpJson + @mcp. Verified working on Kiro CLI
+#                        V3, where MCP tools load on demand.
+#   kiro-default       — delegates to Kiro's built-in default agent. In CLI
+#                        V3 that means omitting --agent entirely; passing
+#                        --agent kiro_default now errors.
+#
+# Either mode resolves the right tool itself, so --question alone is enough
+# for the common case. --tool/--args are an escape hatch for precise calls
+# when the caller already knows the exact server::tool id, skipping a
+# redundant discovery round-trip.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/kirunt.sh
+. "$SCRIPT_DIR/lib/kirunt.sh"
+
+# Script-only switch, same as code-writer — no hook enforces mcp-caller use.
+if [ "$KIRUNT_ENABLE_MCP_CALLER" = "false" ]; then
+  echo "Error: mcp-call is disabled (KIRUNT_ENABLE_MCP_CALLER=false)." >&2
+  exit 1
+fi
+
+if [ "$KIRUNT_MCP_CALLER_MODE" = "kiro-default" ]; then
+  # Empty means "let kiro-cli use its built-in default agent". CLI V3
+  # rejects --agent kiro_default, so the flag must be omitted.
+  AGENT_NAME=""
+else
+  AGENT_NAME="kirunt-mcp-caller"
+fi
+
+question=""
+tool=""
+args=""
+args_file=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --question)  question="$2"; shift 2 ;;
+    --tool)      tool="$2"; shift 2 ;;
+    --args)      args="$2"; shift 2 ;;
+    --args-file) args_file="$2"; shift 2 ;;
+    *)           shift ;;
+  esac
+done
+
+if [ -z "$question" ]; then
+  echo "Error: --question is required" >&2
+  exit 1
+fi
+
+if [ -n "$args" ] && [ -n "$args_file" ]; then
+  echo "Error: pass --args or --args-file, not both" >&2
+  exit 1
+fi
+
+if { [ -n "$args" ] || [ -n "$args_file" ]; } && [ -z "$tool" ]; then
+  echo "Error: --args/--args-file require --tool — arguments need a tool to call" >&2
+  exit 1
+fi
+
+if [ -n "$args_file" ]; then
+  if [ ! -f "$args_file" ]; then
+    echo "Error: args file not found: $args_file" >&2
+    exit 1
+  fi
+  args=$(cat "$args_file")
+fi
+
+if [ -n "$args" ] && ! printf '%s' "$args" | jq -e . >/dev/null 2>&1; then
+  echo "Error: --args/--args-file must contain valid JSON" >&2
+  exit 1
+fi
+
+kirunt_preflight || exit 1
+kirunt_tmpfile message_file || exit 1
+
+{
+  if [ "$KIRUNT_MCP_CALLER_MODE" = "kiro-default" ]; then
+    # kiro_default has no kirunt-specific prompt, so the distillation
+    # instructions kirunt-mcp-caller normally gets from its own `prompt`
+    # field travel in the message body instead, for this call only.
+    printf 'Call the appropriate MCP tool to answer the question below. Use only MCP tools already available to you — do not assume any specific server or tool exists beyond what you can see. If no configured MCP server can answer the question, say so explicitly. If a tool call fails, report the exact error. Respond with structured bullets only: no greetings, no prose, no preambles, no summary of what you did — just the answer.\n\n'
+  fi
+  if [ -n "$tool" ]; then
+    printf 'Call the MCP tool "%s" ' "$tool"
+    if [ -n "$args" ]; then
+      printf 'with these arguments: %s\n' "$args"
+    else
+      printf 'with whatever arguments are appropriate for the question below.\n'
+    fi
+    printf '\n'
+  fi
+  printf 'Question: %s\n' "$question"
+} > "$message_file"
+
+kirunt_invoke "$AGENT_NAME" "$message_file" || exit 1
+
+# Token usage to stderr
+echo "[kirunt: delegated to ${AGENT_NAME:-default} ($KIRUNT_WORKER_MODEL, mode: $KIRUNT_MCP_CALLER_MODE)]" >&2

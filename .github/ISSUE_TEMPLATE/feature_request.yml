@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest a capability, a new worker path, or a config tunable
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the task that costs you context today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Which layer would it belong to — hook, script, skill, or config?
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Anything you've tried, including doing it manually.

@@ -1,0 +1,236 @@
+{
+  "hook": "check-file-size",
+  "description": "Evals for the check-file-size preToolUse hook (matcher: read)",
+  "evals": [
+    {
+      "id": 1,
+      "name": "small-file",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/small.txt" } ] } },
+      "fixture": { "lines": 100 },
+      "expected_exit": 0,
+      "reason": "File under threshold — delegation overhead not worth it"
+    },
+    {
+      "id": 2,
+      "name": "boundary-exact-350",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/boundary.txt" } ] } },
+      "fixture": { "lines": 350 },
+      "expected_exit": 0,
+      "reason": "Exactly at threshold (<=350) — should not block"
+    },
+    {
+      "id": 3,
+      "name": "just-over-threshold",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/over.txt" } ] } },
+      "fixture": { "lines": 351 },
+      "expected_exit": 2,
+      "reason": "One line over threshold — should block"
+    },
+    {
+      "id": 4,
+      "name": "large-file",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/large.txt" } ] } },
+      "fixture": { "lines": 1200 },
+      "expected_exit": 2,
+      "reason": "Well over threshold — clear delegation candidate"
+    },
+    {
+      "id": 5,
+      "name": "very-large-file",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/huge.txt" } ] } },
+      "fixture": { "lines": 5000 },
+      "expected_exit": 2,
+      "reason": "Very large file — blocked regardless of extension"
+    },
+    {
+      "id": 6,
+      "name": "empty-file",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/empty.txt" } ] } },
+      "fixture": { "lines": 0 },
+      "expected_exit": 0,
+      "reason": "Empty file — nothing to delegate"
+    },
+    {
+      "id": 7,
+      "name": "targeted-read-offset",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/large.txt", "offset": 100 } ] } },
+      "fixture": { "lines": 1200 },
+      "expected_exit": 0,
+      "reason": "Offset set — targeted read, allow through"
+    },
+    {
+      "id": 8,
+      "name": "targeted-read-limit",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/large.txt", "limit": 50 } ] } },
+      "fixture": { "lines": 1200 },
+      "expected_exit": 0,
+      "reason": "Limit set — targeted read, allow through"
+    },
+    {
+      "id": 9,
+      "name": "targeted-read-both",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/large.txt", "offset": 100, "limit": 50 } ] } },
+      "fixture": { "lines": 1200 },
+      "expected_exit": 0,
+      "reason": "Both offset and limit — definitely a targeted read"
+    },
+    {
+      "id": 10,
+      "name": "nonexistent-file",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "/tmp/kirunt-does-not-exist.txt" } ] } },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "File doesn't exist — let read handle the error"
+    },
+    {
+      "id": 11,
+      "name": "empty-filepath",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "" } ] } },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "Empty path — pass through"
+    },
+    {
+      "id": 12,
+      "name": "missing-filepath-field",
+      "input": { "tool_input": { "operations": [ { "mode": "Line" } ] } },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "No path field — pass through gracefully"
+    },
+    {
+      "id": 13,
+      "name": "offset-zero",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/large.txt", "offset": 0 } ] } },
+      "fixture": { "lines": 1200 },
+      "expected_exit": 0,
+      "reason": "offset:0 treated as targeted — known bypass, documenting behavior"
+    },
+    {
+      "id": 14,
+      "name": "limit-zero",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/large.txt", "limit": 0 } ] } },
+      "fixture": { "lines": 1200 },
+      "expected_exit": 0,
+      "reason": "limit:0 treated as targeted — known bypass, documenting behavior"
+    },
+    {
+      "id": 15,
+      "name": "env-override-lower",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/medium.txt" } ] } },
+      "fixture": { "lines": 250 },
+      "env": { "KIRUNT_MIN_LINES": "200" },
+      "expected_exit": 2,
+      "reason": "KIRUNT_MIN_LINES=200 overrides default — 250-line file should block"
+    },
+    {
+      "id": 16,
+      "name": "env-override-higher",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/over.txt" } ] } },
+      "fixture": { "lines": 351 },
+      "env": { "KIRUNT_MIN_LINES": "500" },
+      "expected_exit": 0,
+      "reason": "KIRUNT_MIN_LINES=500 overrides default — 351-line file should be allowed"
+    },
+    {
+      "id": 17,
+      "name": "env-non-numeric-fallback",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/over.txt" } ] } },
+      "fixture": { "lines": 351 },
+      "env": { "KIRUNT_MIN_LINES": "abc" },
+      "expected_exit": 2,
+      "reason": "Non-numeric KIRUNT_MIN_LINES falls back to 350 — 351-line file blocked"
+    },
+    {
+      "id": 18,
+      "name": "bulk-reader-disabled-bypasses-large-file",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/large.txt" } ] } },
+      "fixture": { "lines": 1200 },
+      "env": { "KIRUNT_ENABLE_BULK_READER": "false" },
+      "expected_exit": 0,
+      "reason": "KIRUNT_ENABLE_BULK_READER=false disables blocking too — no delegation path to redirect to"
+    },
+    {
+      "id": 19,
+      "name": "bulk-reader-disabled-bypasses-huge-file",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/huge.txt" } ] } },
+      "fixture": { "lines": 5000 },
+      "env": { "KIRUNT_ENABLE_BULK_READER": "false" },
+      "expected_exit": 0,
+      "reason": "Disabled flag bypasses even very large files"
+    },
+    {
+      "id": 20,
+      "name": "directory-mode-not-gated",
+      "input": { "tool_input": { "operations": [ { "mode": "Directory", "path": "{{FIXTURES}}" } ] } },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "Directory mode reads are out of scope for this hook"
+    },
+    {
+      "id": 21,
+      "name": "multi-op-second-offending",
+      "input": { "tool_input": { "operations": [ { "mode": "Line", "path": "{{FIXTURES}}/small.txt" }, { "mode": "Line", "path": "{{FIXTURES}}/large.txt" } ] } },
+      "fixture": { "lines": 1200 },
+      "extra_fixture": { "small.txt": 100 },
+      "expected_exit": 2,
+      "reason": "Batched read where the second operation is a large untargeted file — block the whole call"
+    },
+    {
+      "id": 22,
+      "name": "v3-large-file",
+      "input": { "tool_name": "read_file", "tool_input": { "path": "{{FIXTURES}}/v3-large.txt", "offset": null, "limit": null } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "CLI V3 read_file event — large untargeted read should block"
+    },
+    {
+      "id": 23,
+      "name": "v3-small-file",
+      "input": { "tool_name": "read_file", "tool_input": { "path": "{{FIXTURES}}/v3-small.txt", "offset": null, "limit": null } },
+      "fixture": { "lines": 100 },
+      "expected_exit": 0,
+      "reason": "CLI V3 read_file event — file under threshold is allowed"
+    },
+    {
+      "id": 24,
+      "name": "v3-targeted-offset",
+      "input": { "tool_name": "read_file", "tool_input": { "path": "{{FIXTURES}}/v3-large.txt", "offset": 100, "limit": null } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 0,
+      "reason": "CLI V3 read_file event — offset makes it a targeted read"
+    },
+    {
+      "id": 25,
+      "name": "v3-targeted-limit",
+      "input": { "tool_name": "read_file", "tool_input": { "path": "{{FIXTURES}}/v3-large.txt", "offset": null, "limit": 50 } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 0,
+      "reason": "CLI V3 read_file event — limit makes it a targeted read"
+    },
+    {
+      "id": 26,
+      "name": "v3-relative-path",
+      "input": { "tool_name": "read_file", "cwd": "{{FIXTURES}}", "tool_input": { "path": "v3-relative.txt", "offset": null, "limit": null } },
+      "fixture": { "lines": 800 },
+      "expected_exit": 2,
+      "reason": "CLI V3 events use paths relative to cwd — resolve before checking size"
+    },
+    {
+      "id": 27,
+      "name": "v3-list-directory-not-gated",
+      "input": { "tool_name": "list_directory", "tool_input": { "path": "{{FIXTURES}}" } },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "The read matcher covers list_directory too, but only read_file is gated"
+    },
+    {
+      "id": 28,
+      "name": "v3-missing-path",
+      "input": { "tool_name": "read_file", "tool_input": {} },
+      "fixture": null,
+      "expected_exit": 0,
+      "reason": "Malformed V3 read event with no path passes through gracefully"
+    }
+  ]
+}

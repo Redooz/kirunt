@@ -1,0 +1,65 @@
+#!/bin/bash
+# preToolUse hook (matcher: shell) — blocks shell commands that read large
+# files into context (cat/head/tail/less/more), redirecting to the
+# bulk-reader skill/script instead. Catches what bypasses the read hook.
+#
+# Kiro hook contract: JSON event on stdin, decision via exit code.
+#   exit 0  -> allow
+#   exit 2  -> block (stderr returned to the model as the reason)
+#   other   -> allow, stderr shown to the user as a warning
+#
+# The shell tool's tool_input has a single `command` field (see tools/shell.md).
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../scripts/lib/kirunt.sh
+. "$SCRIPT_DIR/../scripts/lib/kirunt.sh"
+
+# Single authoritative switch: if bulk-reader delegation is disabled, don't
+# block reads either — there would be nowhere useful to redirect to.
+if [ "$KIRUNT_ENABLE_BULK_READER" = "false" ]; then
+  exit 0
+fi
+
+input=$(cat)
+
+# V3 includes the workspace root; use it to resolve relative paths.
+cwd=$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)
+[ -z "$cwd" ] && cwd="$PWD"
+
+command=$(printf '%s' "$input" | jq -r '.tool_input.command // empty' 2>/dev/null)
+[ -z "$command" ] && exit 0
+
+# Skip piped commands (cat file | grep) — those are targeted reads.
+echo "$command" | grep -qE '\|' && exit 0
+
+# Skip redirections (cat file > out) — not a read-into-context operation.
+echo "$command" | grep -qE '>' && exit 0
+
+# Extract file path from read commands, stripping flags (e.g. cat -n, head -100).
+file_path=""
+if echo "$command" | grep -qE '^(cat|head|tail|less|more) '; then
+  args=$(echo "$command" | sed -E 's/^(cat|head|tail|less|more) +//')
+  for arg in $args; do
+    case "$arg" in
+      -*) continue ;;
+      *)  file_path=$(echo "$arg" | tr -d '"'"'"); break ;;
+    esac
+  done
+fi
+
+[ -z "$file_path" ] && exit 0
+case "$file_path" in
+  /*) ;;
+  *) file_path="$cwd/$file_path" ;;
+esac
+[ ! -f "$file_path" ] && exit 0
+
+lines=$(wc -l < "$file_path" 2>/dev/null | tr -d ' ')
+case "$lines" in ''|*[!0-9]*) lines=0 ;; esac
+
+if [ "$lines" -gt "$KIRUNT_MIN_LINES" ]; then
+  echo "File '$file_path' is ${lines} lines (threshold: ${KIRUNT_MIN_LINES}). Use the bulk-reader skill ($SCRIPT_DIR/../scripts/bulk-read) to delegate this read to $KIRUNT_WORKER_MODEL instead of cat/head/tail." >&2
+  exit 2
+fi
+
+exit 0

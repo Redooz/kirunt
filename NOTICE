@@ -1,0 +1,9 @@
+kirunt
+Copyright 2026 kirunt contributors
+
+This product is inspired by and adapts ideas from shunt, part of
+spotify/portal-ai-plugins:
+
+  https://github.com/spotify/portal-ai-plugins/tree/main/plugins/shunt
+
+shunt is licensed under the Apache License, Version 2.0.

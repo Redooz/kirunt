@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "kirunt-fixture": {
+      "command": "node",
+      "args": ["evals/fixtures/mcp-fixture-server.js"],
+      "disabled": false,
+      "autoApprove": ["get_fixture_page"]
+    }
+  }
+}

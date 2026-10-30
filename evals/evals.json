@@ -1,0 +1,71 @@
+{
+  "description": "End-to-end skill evals — test whether the kirunt agent uses the delegation scripts correctly",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "What are all the exported items in evals/fixtures/websocket-handler.ts and what do they do?",
+      "expected_output": "The agent should be blocked by the check-file-size hook (602 lines), then invoke the bulk-read script",
+      "files": ["evals/fixtures/websocket-handler.ts"],
+      "expectations": [
+        "The agent ran scripts/bulk-read with --question and --paths",
+        "The agent did NOT read the full file directly",
+        "The agent provided a summary based on the bulk-read output"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Write unit tests for UserService following the pattern in order-service.test.ts.",
+      "expected_output": "The agent should invoke the code-write script with --spec, --reference, and --target",
+      "files": ["evals/fixtures/user-service.ts", "evals/fixtures/order-service.test.ts"],
+      "expectations": [
+        "The agent ran scripts/code-write with --spec and --reference",
+        "Output was written to a target file via --target",
+        "The agent reviewed the generated output before accepting it"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "There's a bug on line 42 of websocket-handler.ts where the heartbeat interval isn't cleared on disconnect. Fix it.",
+      "expected_output": "The agent should NOT delegate — debugging requires reasoning, not bulk I/O",
+      "files": ["evals/fixtures/websocket-handler.ts"],
+      "expectations": [
+        "The agent did NOT run bulk-read or code-write",
+        "The agent read the file with offset/limit for the relevant section",
+        "The agent applied reasoning to the debugging task"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Search for the Q3 rollout page and summarize the timeline.",
+      "expected_output": "The agent has no MCP tools directly available, so it should delegate to the mcp-call script using the default worker mode (kirunt-mcp-caller on CLI V3) rather than attempting an MCP tool call itself",
+      "mcp_config": "evals/fixtures/mcp.json",
+      "expectations": [
+        "The agent ran scripts/mcp-call with --question",
+        "The agent did NOT attempt to call an @server/tool MCP tool directly (it has none available)",
+        "The agent's summary reflects the fixture page content (timeline weeks 1-6), not a hallucinated answer"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Look up the deployment runbook in Confluence.",
+      "expected_output": "No MCP servers are configured in this eval's mcp.json (empty) — the agent should still delegate via mcp-call, and the worker should report cleanly that no matching server/tool was found rather than hallucinating an answer",
+      "mcp_config": "evals/fixtures/mcp-empty.json",
+      "expectations": [
+        "The agent ran scripts/mcp-call with --question",
+        "The reported result states no matching MCP server/tool was found, or equivalent",
+        "The agent did NOT fabricate runbook content"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Call the fixture MCP tool @kirunt-fixture/get_fixture_page directly and summarize its timeline.",
+      "expected_output": "The agent should delegate via mcp-call with --tool and --args; the worker must be able to call a known MCP tool by id on CLI V3",
+      "mcp_config": "evals/fixtures/mcp.json",
+      "expectations": [
+        "The agent ran scripts/mcp-call with --tool and --question",
+        "The worker called the fixture MCP tool rather than guessing",
+        "The agent's summary reflects the fixture page content (timeline weeks 1-6)"
+      ]
+    }
+  ]
+}
