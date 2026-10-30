@@ -25,11 +25,12 @@ jobs:
 
       - name: Shellcheck (errors only)
         run: |
-          if command -v shellcheck >/dev/null 2>&1; then
-            shellcheck --severity=error hooks/* scripts/* scripts/lib/* evals/*.sh install/install.sh
-          else
+          if ! command -v shellcheck >/dev/null 2>&1; then
             echo "shellcheck not available, skipping"
+            exit 0
           fi
+          mapfile -t files < <(find hooks scripts evals install -type f \( -name '*.sh' -o -perm -u+x \) | sort)
+          shellcheck --severity=error "${files[@]}"
 
       - name: Run offline suite (79 cases)
         run: bash evals/run.sh
