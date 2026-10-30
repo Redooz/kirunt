@@ -19,8 +19,17 @@ jobs:
       - name: Check bash syntax
         run: |
           for f in hooks/* scripts/* scripts/lib/* evals/*.sh install/install.sh; do
+            [ -f "$f" ] || continue
             bash -n "$f"
           done
+
+      - name: Shellcheck (errors only)
+        run: |
+          if command -v shellcheck >/dev/null 2>&1; then
+            shellcheck --severity=error hooks/* scripts/* scripts/lib/* evals/*.sh install/install.sh
+          else
+            echo "shellcheck not available, skipping"
+          fi
 
       - name: Run offline suite (79 cases)
         run: bash evals/run.sh
